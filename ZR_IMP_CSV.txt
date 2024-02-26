@@ -1,0 +1,110 @@
+*&---------------------------------------------------------------------*
+*& Report ZR_IMP_CSV
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ZR_IMP_CSV.
+
+TYPES: BEGIN OF ty_s_csv,
+         regiao    TYPE string,
+         estado    TYPE string,
+         municipio TYPE string,
+         revenda   TYPE string,
+         cnpj      TYPE string,
+         nom_rua   TYPE string,
+         num_rua   TYPE string,
+         compl     TYPE string,
+         bairro    TYPE string,
+         cep       TYPE string,
+         produto   TYPE string,
+         dat_col   TYPE string,
+         venda     TYPE string,
+         compra    TYPE string,
+         uni_med   TYPE string,
+         bandeira  TYPE string,
+       END OF ty_s_csv,
+
+       ty_it_csv TYPE STANDARD TABLE OF ty_s_csv WITH DEFAULT KEY.
+
+PARAMETERS: p_header AS CHECKBOX DEFAULT 'X'.
+
+TRY.
+
+    DATA: lv_rc     TYPE i,
+          it_files  TYPE filetable,
+          lv_action TYPE i.
+
+    cl_gui_frontend_services=>file_open_dialog(
+    EXPORTING
+      file_filter = |csv (*.csv)\|*.csv\|{ cl_gui_frontend_services=>filetype_all }| "Pega diretório do arquivo, filtra a extensão do arquivo para aceitar somente o CSV.
+      multiselection = abap_false
+      CHANGING
+        file_table = it_files
+        rc = lv_rc
+        user_action = lv_action ).
+
+    IF lv_action = cl_gui_frontend_services=>action_ok. "Verifica se o arquivo foi selecionado
+
+      IF lines( it_files ) = 1. "Verifica se a tabela com o diretório está preenchida
+
+        DATA(it_csv_strings) = VALUE string_table( ). "Declaração INLINE tabela de modelo string_table.
+
+        cl_gui_frontend_services=>gui_upload( "Função para transformar dividir as linhas do arquivo CSV em linhas de tabela interna
+        EXPORTING
+          filename = CONV #( it_files[ 1 ]-filename ) "Conversão INLINE para o tipo esperado na função/ enviando primeira linha da coluna filename.
+          filetype = 'ASC'
+          CHANGING
+            data_tab = it_csv_strings ).
+
+        cl_demo_output=>write_Data( it_csv_strings ). "Escreve na tela as linhas da tabela interna com linhas do CSV...
+
+        DATA(LV_START_line) = COND i( WHEN  p_header = abap_true THEN 2 ELSE 1 ). "Verifica se a opção de cabeçalho foi preenchida, e atribuí o ÍNDICE da primeira linha NÃO CABEÇALHO ( 2 ) a variável LV_START_line
+
+        IF ( lines( it_csv_strings ) > lv_start_line - 1 ). " Pega do índice de linha inicial.
+
+          DATA(it_csv) = VALUE ty_it_csv( ).
+
+          LOOP AT it_csv_strings ASSIGNING FIELD-SYMBOL(<z>) FROM lv_start_line. "Inicia o LOOP a partir da linha da VAR LV_START_line geralmente linha após cabeçalho
+
+            DATA(ls_csv_line) = VALUE ty_s_csv( ).
+
+            SPLIT <z> AT ';' INTO TABLE DATA(it_columns). "Separa o conteúdo das linhas de acordo com o ; e atribui a Tabela interna it_columns.
+
+            IF lines( it_columns )  = 16. " Verifica se o num de linhas da tabela coluna está de acordo com o arquivo CSV... este ponto deve ser configurado de acordo com o num de colunas do seu arquivo CSV.
+              ls_csv_line-regiao    = it_columns[ 1 ].
+              ls_csv_line-estado    = it_columns[ 2 ].
+              ls_csv_line-Municipio = it_columns[ 3 ].
+              ls_csv_line-revenda   = it_columns[ 4 ].
+              ls_csv_line-cnpj      = it_columns[ 5 ].
+              ls_csv_line-nom_rua   = it_columns[ 6 ].
+              ls_csv_line-num_rua   = it_columns[ 7 ].
+              ls_csv_line-compl     = it_columns[ 8 ].
+              ls_csv_line-bairro    = it_columns[ 9 ].
+              ls_csv_line-cep       = it_columns[ 10 ].
+              ls_csv_line-produto   = it_columns[ 11 ].
+              ls_csv_line-dat_col   = it_columns[ 12 ].
+              ls_csv_line-venda     = it_columns[ 13 ].
+              ls_csv_line-compra    = it_columns[ 14 ].
+              ls_csv_line-uni_med   = it_columns[ 15 ].
+              ls_csv_line-bandeira  = it_columns[ 16 ].
+            ENDIF.
+
+            APPEND ls_csv_line TO it_csv.
+          ENDLOOP.
+
+          cl_demo_output=>write_data( it_csv ). "Escreve na tela a tabela interna que contém os registros do CSV.
+          DATA(lv_html) = cl_demo_output=>get( ).
+          cl_abap_browser=>show_html( "Escreve na tela um contaíner para as informações da tabela interna contendo os registros do CSV
+          EXPORTING
+            title = 'Prç. comb. GASOLINA e ETANOL BR.'
+            html_string = lv_html
+            container = cl_gui_container=>default_screen ).
+          WRITE: space.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  CATCH cx_root INTO DATA(e_text).
+    MESSAGE e_text->get_text( ) TYPE 'I'.
+
+ENDTRY.
