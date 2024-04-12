@@ -1,0 +1,86 @@
+  METHOD /iwbep/if_mgw_appl_srv_runtime~create_stream.
+
+    DATA: lv_xstring  TYPE xstring,
+          lv_string   TYPE string,
+          it_csv      TYPE TABLE OF ZTIBT_data_fuel,
+          lt_lines    TYPE TABLE OF string,
+          ls_csv_line TYPE ZTIBT_data_fuel,
+          lv_venda    TYPE ztibde_venda,
+          lv_compra   TYPE ztibde_compra.
+
+    lv_xstring = is_media_resource-value.
+
+    CALL FUNCTION 'HR_KR_XSTRING_TO_STRING'
+      EXPORTING
+        in_xstring = lv_xstring
+      IMPORTING
+        out_string = lv_string.
+    SPLIT lv_string AT cl_abap_char_utilities=>cr_lf INTO TABLE lt_lines.
+    DATA(lv_start_line) = 2.
+
+    SELECT MAX( id ) FROM ZTIBT_data_fuel INTO @DATA(lv_id).
+
+    LOOP AT lt_lines ASSIGNING FIELD-SYMBOL(<z>) FROM lv_start_line.
+      lv_id = lv_id + 1.
+      SPLIT <z> AT ';' INTO TABLE DATA(it_columns).
+
+*      SPLIT <z> AT ';' INTO ls_csv_line-regiao ls_csv_line-estado lv_venda
+
+      CALL FUNCTION 'HRCM_STRING_TO_AMOUNT_CONVERT'
+        EXPORTING
+          string              = it_columns[ 13 ]
+          decimal_separator   = ','
+          thousands_separator = '.'
+        IMPORTING
+          betrg               = lv_venda.
+
+      CALL FUNCTION 'HRCM_STRING_TO_AMOUNT_CONVERT'
+        EXPORTING
+          string              = it_columns[ 14 ]
+          decimal_separator   = ','
+          thousands_separator = '.'
+        IMPORTING
+          betrg               = lv_compra.
+
+      DATA(lv_data) = it_columns[ 12 ].
+      REPLACE ALL OCCURRENCES OF '/' IN lv_data WITH '.'.
+
+      CALL FUNCTION 'CONVERSION_EXIT_IDATE_INPUT'
+        EXPORTING
+          input  = lv_data
+        IMPORTING
+          output = lv_data.
+
+      it_columns[ 12 ] = lv_data.
+
+      IF lines( it_columns )  = 16. " Verifica se o num de linhas da tabela coluna está de acordo com o arquivo CSV... este ponto deve ser configurado de acordo com o num de colunas do seu arquivo CSV.
+        ls_csv_line-mandt     = sy-mandt.
+        ls_csv_line-id        = lv_id.
+        ls_csv_line-regiao    = it_columns[ 1 ].
+        ls_csv_line-estado    = it_columns[ 2 ].
+        ls_csv_line-Municipio = it_columns[ 3 ].
+        ls_csv_line-revenda   = it_columns[ 4 ].
+        ls_csv_line-cnpj      = it_columns[ 5 ].
+        ls_csv_line-nom_rua   = it_columns[ 6 ].
+        ls_csv_line-num_rua   = it_columns[ 7 ].
+        ls_csv_line-compl     = it_columns[ 8 ].
+        ls_csv_line-bairro    = it_columns[ 9 ].
+        ls_csv_line-cep       = it_columns[ 10 ].
+        ls_csv_line-produto   = it_columns[ 11 ].
+        ls_csv_line-dat_col   = it_columns[ 12 ].
+        ls_csv_line-venda     = lv_venda.
+        ls_csv_line-compra    = lv_compra.
+        ls_csv_line-uni_med   = it_columns[ 15 ].
+        ls_csv_line-bandeira  = it_columns[ 16 ].
+      ENDIF.
+      APPEND ls_csv_line TO it_csv.
+      MODIFY ZTIBT_data_fuel FROM ls_csv_line.
+
+    ENDLOOP.
+
+    IF sy-subrc IS INITIAL.
+*      er_entity = is_media_resource-value.
+      COMMIT WORK.
+    ENDIF.
+
+  ENDMETHOD.
